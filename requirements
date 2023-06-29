@@ -1,0 +1,11 @@
+#requirements
+pip install numpy
+pip install scipy
+pip install matplotlib
+pip install qutip
+pip install Cython
+pip install tqdm
+pip install sympy
+pip install ipywidgets
+pip install scqubits
+pip install torch
