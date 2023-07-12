@@ -4,6 +4,7 @@ import scipy as sp
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
 
 
+
 def process_op(native_op, energy_esys, truncated_dim):
         ##### transform operator from native basis to energy eigenbasis 
     return native_op
@@ -71,3 +72,18 @@ def tphi(
         return rate
 
 
+
+def annihilation(dimension: int):
+    """
+    Returns a dense matrix of size dimension x dimension representing the annihilation
+    operator in number basis.
+    """
+    offdiag_elements = np.sqrt(range(1, dimension))
+    return np.diagflat(offdiag_elements, 1)
+
+def creation(dimension: int):
+    """
+    Returns a dense matrix of size dimension x dimension representing the creation
+    operator in number basis.
+    """
+    return annihilation(dimension).T
