@@ -1,9 +1,9 @@
 import torch
-import noise
+import general
 import scqubits as sc
 import numpy as np
 import math
-import general
+import scipy as sp
 
 
 class Fluxonium:
@@ -16,11 +16,12 @@ class Fluxonium:
 
 
     def phi(self):
+          phi_osc = torch.pow((8.0 * torch.tensor(self.EC)/ torch.tensor(self.EL)) , 0.25)
           phi = (
-                (torch.tensor(noise.creation(self.dim),dtype=torch.double) + torch.tensor(noise.annihilation(self.dim),dtype=torch.double))
-                * self.phi_osc()/ math.sqrt(2)
+                (torch.tensor(general.creation(self.dim),dtype=torch.double) + torch.tensor(general.annihilation(self.dim),dtype=torch.double))
+                * phi_osc/ math.sqrt(2)
             )
-          return
+          return phi 
 
     def cos_phi(self):
         argument = self.phi() + 2 * np.pi * self.flux * torch.tensor(np.eye(self.dim),dtype=torch.double)
@@ -40,8 +41,8 @@ class Fluxonium:
         phi_osc = torch.pow((8.0 * torch.tensor(self.EC)/ torch.tensor(self.EL)) , 0.25)
         n_op = (
                 1j
-                * (torch.tensor(noise.creation(self.dim),dtype=torch.double) - torch.tensor(noise.annihilation(self.dim),dtype=torch.double))
-                / (phi_osc() * math.sqrt(2))
+                * (torch.tensor(general.creation(self.dim),dtype=torch.double) - torch.tensor(general.annihilation(self.dim),dtype=torch.double))
+                / (phi_osc * math.sqrt(2))
             )
         return n_op
     
@@ -68,13 +69,11 @@ class Fluxonium:
             sc.Fluxonium(EJ=self.EJ, EC=self.EC, EL = self.EL, flux = self.flux, cutoff= self.dim).hamiltonian())
     
     def esys(self):
-        eigvals,eigvecs = torch.linalg.eigh(self.H())
+        eigvals,eigvecs = torch.linalg.eigh(self.auto_H())
         return eigvals,eigvecs
     
     def omega(self):
         eigvals,eigvecs = self.esys()
-        ground = eigvecs[:,0]
-        excited = eigvecs[:,1]
         ground_E = eigvals[0]
         excited_E = eigvals[1]
         return 2 * np.pi * (excited_E - ground_E) * 1e9
@@ -93,7 +92,7 @@ class Fluxonium:
         s = (
             2
             * 8
-            * sel.fEC
+            * self.EC
             / self.q_cap_fun()
             * (1 / torch.tanh(0.5 * torch.abs(therm_ratio)))
             / (1 + torch.exp(-therm_ratio))
@@ -166,13 +165,13 @@ class Fluxonium:
             )
         )
 
-    def spectral_density_ind(self):
+    def spectral_density_ind(self,T):
 
         therm_ratio = abs(general.calc_therm_ratio(self.omega(), T))
         s = (
             2
             * self.EL
-            / self.q_ind_fun()
+            / self.q_ind_fun(T)
             * (1 / torch.tanh(0.5 * torch.abs(therm_ratio)))
             / (1 + torch.exp(-therm_ratio))
         )
@@ -192,14 +191,14 @@ class Fluxonium:
         omega_in_Hz = omega / (2 * np.pi) 
         EJ_in_Hz = self.EJ * 1e9 # GHz to Hz
 
-        therm_ratio = self.calc_therm_ratio(self.omega(), T)
-        Delta_over_T = self.calc_therm_ratio(
+        therm_ratio = general.calc_therm_ratio(self.omega(), T)
+        Delta_over_T = general.calc_therm_ratio(
             2 * np.pi * Delta_in_Hz, T
         )
 
         re_y_qp = (
             np.sqrt(2 / np.pi)
-            * (8 / self.R_k)
+            * (8 / R_k)
             * (EJ_in_Hz / Delta_in_Hz)
             * (2 * Delta_in_Hz / omega_in_Hz) ** (3 / 2)
             * x_qp
@@ -211,14 +210,14 @@ class Fluxonium:
 
         return re_y_qp
 
-    def spectral_density_qt(self, T):
+    def spectral_density_qt(self, T, R_k):
         """Based on Eq. 19 in Smith et al (2020)."""
         therm_ratio = general.calc_therm_ratio(self.omega(), T)
 
         return (
             2
             * self.omega() / 1e9
-            * complex(self.y_qp_fun()).real
+            * complex(self.y_qp_fun(T, R_k)).real
             * (1 / torch.tanh(0.5 * therm_ratio))
             / (1 + torch.exp(-therm_ratio))
         )
