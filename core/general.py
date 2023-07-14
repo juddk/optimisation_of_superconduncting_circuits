@@ -17,10 +17,7 @@ def calc_therm_ratio(
 def t1(
         noise_op: torch.Tensor,
         spectral_density: torch.Tensor,
-        eigvals: torch.Tensor,
         eigvecs: torch.Tensor,
-        EL: torch.Tensor
-        
     ):
         # We assume that the energies in `evals` are given in the units of frequency
         # and *not* angular frequency. The function `spectral_density` is assumed to
@@ -28,10 +25,6 @@ def t1(
 
         ground = eigvecs[:,0]
         excited = eigvecs[:,1]
-        ground_E = eigvals[0]
-        excited_E = eigvals[1]
-
-        omega = 2 * np.pi * (excited_E - ground_E) * 1e9
         
         s = spectral_density 
         ##Note the distinction in code where they have spectral_density(omega)+spectral_density(-omega) may
