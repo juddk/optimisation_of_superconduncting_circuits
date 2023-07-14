@@ -73,7 +73,9 @@ def t1(
 def tphi(
         A_noise: float,
         noise_op: torch.Tensor,
-        eigvecs: torch.Tensor
+        eigvecs: torch.Tensor, 
+        omega_low: float = NOISE_PARAMS["omega_low"], 
+        t_exp: float = NOISE_PARAMS["t_exp"]
     ) -> float:
         
         omega_low = 1e-9 * 2 * np.pi  # Low frequency cutoff. Units: 2pi GHz
