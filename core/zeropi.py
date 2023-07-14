@@ -3,8 +3,9 @@ import torch
 import numpy as np
 from scipy import sparse
 from scipy.sparse import dia_matrix
-import noise
+import general
 import scipy as sp
+from typing import Union
 
 
 class ZeroPi:
@@ -21,7 +22,8 @@ class ZeroPi:
                  truncated_dim: int, 
                  pt_count: int, 
                  min_val: float, 
-                 max_val: float):
+                 max_val: float,
+                 hamiltonian_creation: str):
         self.EJ = EJ
         self.EL = EL
         self.ECJ = ECJ
@@ -35,8 +37,50 @@ class ZeroPi:
         self.pt_count = pt_count 
         self.max_val = min_val  
         self.min_val = max_val
+        self.hamiltonian_creation = hamiltonian_creation
+    
+    def t1_supported_noise_channels(self):
+        t1_supported_noise_channels = []
+        qubit = sc.ZeroPi(
+            grid = sc.Grid1d(min_val= self.min_val, max_val=self.max_val, pt_count=self.pt_count),
+            EJ   = self.EJ,
+            EL   = self.EL, 
+            ECJ  = self.ECJ,
+            EC   = self.EC,
+            ng   = self.ng,
+            flux = self.flux,
+            ncut = self.ncut, 
+            dEJ = self.dEJ, 
+            dCJ = self.dCJ,
+        )
+        for x in qubit.supported_noise_channels():
+            if x.startswith("t1"):
+                t1_supported_noise_channels.append(x)
+        return t1_supported_noise_channels
 
-    def H(self):
+    def tphi_supported_noise_channels(self):
+        tphi_supported_noise_channels = []
+        qubit = sc.ZeroPi(
+            grid = sc.Grid1d(min_val= self.min_val, max_val=self.max_val, pt_count=self.pt_count),
+            EJ   = self.EJ,
+            EL   = self.EL, 
+            ECJ  = self.ECJ,
+            EC   = self.EC,
+            ng   = self.ng,
+            flux = self.flux,
+            ncut = self.ncut, 
+            dEJ = self.dEJ, 
+            dCJ = self.dCJ,
+        )
+        for x in qubit.supported_noise_channels():
+            if x.startswith("tphi"):
+                tphi_supported_noise_channels.append(x)
+        return tphi_supported_noise_channels
+
+    def create_H():
+        return
+
+    def auto_H(self):
         create_qubit = sc.ZeroPi(
             grid = sc.Grid1d(min_val= self.min_val, max_val=self.max_val, pt_count=self.pt_count),
             EJ   = self.EJ,
@@ -47,14 +91,22 @@ class ZeroPi:
             flux = self.flux,
             ncut = self.ncut, 
             dEJ = self.dEJ, 
-            dCJ = self.dCJ
+            dCJ = self.dCJ,
         )
         return torch.from_numpy(create_qubit.hamiltonian().toarray())
     
     def esys(self):
-        eigvals,eigvecs = torch.linalg.eigh(self.H())
+        if self.hamiltonian_creation == 'create_H':
+            eigvals,eigvecs = torch.linalg.eigh(self.create_H())
+        elif self.hamiltonian_creation == 'auto_H':
+            eigvals,eigvecs = torch.linalg.eigh(self.auto_H())
         return eigvals,eigvecs
-          
+    
+    def omega(self):
+        eigvals,eigvecs = self.esys()
+        ground_E = eigvals[0]
+        excited_E = eigvals[1]
+        return 2 * np.pi * (excited_E - ground_E) * 1e9
 
     def _identity_theta(self) -> torch.Tensor:
         dim_theta = 2 * self.ncut + 1
@@ -163,7 +215,7 @@ class ZeroPi:
     #flux_bias_line_spectral_density
     def spectral_density_fbl(self, M, R_0 , T):
             
-            therm_ratio = noise.calc_therm_ratio(self.omega(), T)
+            therm_ratio = general.calc_therm_ratio(self.omega(), T)
             s = (
                 2
                 * (2 * np.pi) ** 2
@@ -180,8 +232,8 @@ class ZeroPi:
 
     #inductive_spectral_density
     def q_ind_fun(self, T):
-        therm_ratio = abs(noise.calc_therm_ratio(self.omega(), T))
-        therm_ratio_500MHz = noise.calc_therm_ratio(
+        therm_ratio = abs(general.calc_therm_ratio(self.omega(), T))
+        therm_ratio_500MHz = general.calc_therm_ratio(
            omega =  torch.tensor(2 * np.pi * 500e6), T=T
         )
         return (
@@ -199,7 +251,7 @@ class ZeroPi:
         )
 
     def spectral_density_ind(self, T):
-        therm_ratio = noise.calc_therm_ratio(self.omega(),T)
+        therm_ratio = general.calc_therm_ratio(self.omega(),T)
         s = (
             2
             * self.EL

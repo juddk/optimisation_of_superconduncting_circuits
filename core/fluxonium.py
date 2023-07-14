@@ -22,7 +22,7 @@ class Fluxonium:
         self.hamiltonian_creation = hamiltonian_creation
 
 
-    def phi(self):
+    def phi_operator(self):
           phi_osc = torch.pow((8.0 * torch.tensor(self.EC)/ torch.tensor(self.EL)) , 0.25)
           phi = (
                 (torch.tensor(general.creation(self.dim),dtype=torch.double) + torch.tensor(general.annihilation(self.dim),dtype=torch.double))
@@ -30,20 +30,20 @@ class Fluxonium:
             )
           return phi 
 
-    def cos_phi(self):
-        argument = self.phi() + 2 * np.pi * self.flux * torch.tensor(np.eye(self.dim),dtype=torch.double)
+    def cos_phi_operator(self):
+        argument = self.phi_operator() + 2 * np.pi * self.flux * torch.tensor(np.eye(self.dim),dtype=torch.double)
         cos_phi = (torch.linalg.matrix_exp(argument*1j)+torch.linalg.matrix_exp(argument*-1j))/2
         return cos_phi
     
-    def sin_phi(self):
-        argument = self.phi() + 2 * np.pi * self.flux * torch.tensor(np.eye(self.dim),dtype=torch.double)
+    def sin_phi_operator(self):
+        argument = self.phi_operator() + 2 * np.pi * self.flux * torch.tensor(np.eye(self.dim),dtype=torch.double)
     
         sin_phi = (torch.linalg.matrix_exp(argument*1j)-torch.linalg.matrix_exp(argument*-1j))/2j
 
         return sin_phi 
     
     
-    def n_op(self):
+    def n_operator(self):
         
         phi_osc = torch.pow((8.0 * torch.tensor(self.EC)/ torch.tensor(self.EL)) , 0.25)
         n_op = (
@@ -53,13 +53,13 @@ class Fluxonium:
             )
         return n_op
     
-    def d_ham_d_flux(self):
+    def d_hamiltonian_d_flux(self):
         
-        return -2 * np.pi * torch.tensor(self.EJ) * self.sin_phi()
+        return -2 * np.pi * torch.tensor(self.EJ) * self.sin_phi_operator()
     
 
-    def d_ham_d_EJ(self):
-        return -self.cos_phi()
+    def d_hamiltonian_d_EJ(self):
+        return -self.cos_phi_operator()
     
 
     def create_H(self):
@@ -68,13 +68,29 @@ class Fluxonium:
         lc_osc = torch.tensor(np.diag(diag_elements),dtype=torch.double)
         lc_osc = lc_osc * plasma_energy
         
-        return lc_osc - self.EJ*self.cos_phi()
+        return lc_osc - self.EJ*self.cos_phi_operator()
 
     
     def auto_H(self):
         return torch.from_numpy(
             sc.Fluxonium(EJ=self.EJ, EC=self.EC, EL = self.EL, flux = self.flux, cutoff= self.dim).hamiltonian())
     
+
+    def t1_supported_noise_channels(self):
+        t1_supported_noise_channels = []
+        for x in sc.Fluxonium(EJ=self.EJ, EC=self.EC, EL = self.EL, flux = self.flux, cutoff= self.dim).supported_noise_channels():
+            if x.startswith("t1"):
+                t1_supported_noise_channels.append(x)
+        return t1_supported_noise_channels
+
+    def tphi_supported_noise_channels(self):
+        tphi_supported_noise_channels = []
+        for x in sc.Fluxonium(EJ=self.EJ, EC=self.EC, EL = self.EL, flux = self.flux, cutoff= self.dim).supported_noise_channels():
+            if x.startswith("tphi"):
+                tphi_supported_noise_channels.append(x)
+        return tphi_supported_noise_channels
+    
+
     def esys(self):
         if self.hamiltonian_creation == 'create_H':
             eigvals,eigvecs = torch.linalg.eigh(self.create_H())
@@ -112,9 +128,9 @@ class Fluxonium:
         )  # We assume that system energies are given in units of frequency
         return s
 
-#T1 CHARGE IMPEDANCE FUNCTIONS - charge impendenace not included?
+#T1 CHARGE IMPEDANCE FUNCTIONS 
 
-    def spectral_density_ci(self, R_k, T):
+    def spectral_density_ci(self, R_0, T, R_k):
         # Note, our definition of Q_c is different from Zhang et al (2020) by a
         # factor of 2
 
@@ -233,6 +249,6 @@ class Fluxonium:
         )
     
     def qt_noise_op(self):
-        argument = self.phi() + 2 * np.pi * self.flux * torch.tensor(np.eye(self.dim),dtype=torch.double)
+        argument = self.phi_operator() + 2 * np.pi * self.flux * torch.tensor(np.eye(self.dim),dtype=torch.double)
         qt_argument = argument/2
         return (torch.linalg.matrix_exp(qt_argument*1j)-torch.linalg.matrix_exp(qt_argument*-1j))/2j
