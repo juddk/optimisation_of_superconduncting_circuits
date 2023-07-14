@@ -7,12 +7,19 @@ import scipy as sp
 
 
 class Fluxonium:
-    def __init__(self, EJ,EC,EL,flux,dim):
+    def __init__(self,
+                 EJ: float,
+                 EC: float,
+                 EL: float,
+                 flux: float,
+                 dim: int, 
+                 hamiltonian_creation: str):
         self.EJ = EJ
         self.EC = EC
         self.EL = EL
         self.flux = flux 
         self.dim = dim
+        self.hamiltonian_creation = hamiltonian_creation
 
 
     def phi(self):
@@ -69,7 +76,10 @@ class Fluxonium:
             sc.Fluxonium(EJ=self.EJ, EC=self.EC, EL = self.EL, flux = self.flux, cutoff= self.dim).hamiltonian())
     
     def esys(self):
-        eigvals,eigvecs = torch.linalg.eigh(self.auto_H())
+        if self.hamiltonian_creation == 'create_H':
+            eigvals,eigvecs = torch.linalg.eigh(self.create_H())
+        elif self.hamiltonian_creation == 'auto_H':
+            eigvals,eigvecs = torch.linalg.eigh(self.auto_H())
         return eigvals,eigvecs
     
     def omega(self):
