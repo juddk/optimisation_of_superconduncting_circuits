@@ -81,6 +81,7 @@ class ZeroPi:
         return
 
     def auto_H(self):
+
         create_qubit = sc.ZeroPi(
             grid = sc.Grid1d(min_val= self.min_val, max_val=self.max_val, pt_count=self.pt_count),
             EJ   = self.EJ.item(),
@@ -93,6 +94,7 @@ class ZeroPi:
             dEJ = self.dEJ, 
             dCJ = self.dCJ,
         )
+        
         return torch.from_numpy(create_qubit.hamiltonian().toarray())
     
     def esys(self):
@@ -211,61 +213,4 @@ class ZeroPi:
         ground_E = eigvals[0]
         excited_E = eigvals[1]
         return 2 * np.pi * (excited_E - ground_E) * 1e9
-
-    #flux_bias_line_spectral_density
-    def spectral_density_fbl(self, M, R_0 , T):
-            
-            therm_ratio = general.calc_therm_ratio(self.omega(), T)
-            s = (
-                2
-                * (2 * np.pi) ** 2
-                * M**2
-                * self.omega()
-                * sp.constants.hbar
-                / complex(R_0).real
-                * (1 / torch.tanh(0.5 * therm_ratio))
-                / (1 + torch.exp(-therm_ratio))
-                )
-            s *= (2 * np.pi)  # We assume that system energies are given in units of frequency
-            return s
-
-
-    #inductive_spectral_density
-    def q_ind_fun(self, T):
-        therm_ratio = abs(general.calc_therm_ratio(self.omega(), T))
-        therm_ratio_500MHz = general.calc_therm_ratio(
-           omega =  torch.tensor(2 * np.pi * 500e6), T=T
-        )
-        return (
-            500e6
-            * (
-                torch.special.scaled_modified_bessel_k0(1 / 2 * therm_ratio_500MHz)
-                * torch.sinh(1 / 2 * therm_ratio_500MHz)
-                / torch.exp(1 / 2 * therm_ratio_500MHz)
-            )
-            / (
-                torch.special.scaled_modified_bessel_k0(1 / 2 * therm_ratio)
-                * torch.sinh(1 / 2 * therm_ratio)
-                / torch.exp(1 / 2 * therm_ratio)
-            )
-        )
-
-    def spectral_density_ind(self, T):
-        therm_ratio = general.calc_therm_ratio(self.omega(),T)
-        s = (
-            2
-            * self.EL
-            / self.q_ind_fun(T)
-            * (1 / torch.tanh(0.5 * torch.abs(therm_ratio)))
-            / (1 + torch.exp(-therm_ratio))
-        )
-        s *= (
-            2 * np.pi
-        )  # We assume that system energies are given in units of frequency
-        return s
-
-
-
-
-    
 

@@ -113,14 +113,14 @@ def effective_t1_rate(
          t1_rate += t1(noise_op = qubit.n_operator(), spectral_density = qubit.spectral_density_cap(T), eigvecs = eigvecs)
 
     if "t1_flux_bias_line" in noise_channels:
-         t1_rate += t1(noise_op = qubit.d_hamiltonian_d_flux(), spectral_density = qubit.spectral_density_fbl(T, M, R_0), eigvecs = eigvecs)
+         t1_rate += t1(noise_op = qubit.d_hamiltonian_d_flux(), spectral_density = spectral_density_fbl(qubit, T, M, R_0), eigvecs = eigvecs)
 
     if "t1_charge_impedance" in noise_channels:
          t1_rate += t1(noise_op = qubit.n_operator(), spectral_density = qubit.spectral_density_ci(R_0=R_0, T=T, R_k= R_k), eigvecs = eigvecs)
 
   
     if "t1_inductive" in noise_channels:
-         t1_rate += t1(noise_op = qubit.phi_operator()+0j, spectral_density = qubit.spectral_density_ind(T), eigvecs = eigvecs)
+         t1_rate += t1(noise_op = qubit.phi_operator()+0j, spectral_density = spectral_density_ind(qubit, T), eigvecs = eigvecs)
 
     if "t1_quasiparticle_tunneling" in noise_channels:
          t1_rate += t1(noise_op = qubit.qt_noise_op()+0j, spectral_density = qubit.spectral_density_qt(T, R_k), eigvecs = eigvecs)
@@ -159,6 +159,68 @@ def t2(qubit ,
         return 1/(0.5*t1_rate)+1/tphi_rate
 
 
+
+#flux_bias_line_spectral_density
+def spectral_density_fbl(
+        qubit,
+        M: float = NOISE_PARAMS["M"], 
+        R_0: float = NOISE_PARAMS["R_0"], 
+        T: float = NOISE_PARAMS["T"]):
+        
+        therm_ratio = calc_therm_ratio(qubit.omega(), T)
+        s = (
+            2
+            * (2 * np.pi) ** 2
+            * M**2
+            * qubit.omega()
+            * sp.constants.hbar
+            / complex(R_0).real
+            * (1 / torch.tanh(0.5 * therm_ratio))
+            / (1 + torch.exp(-therm_ratio))
+            )
+        s *= (2 * np.pi)  # We assume that system energies are given in units of frequency
+        return s
+
+
+    #inductive_spectral_density
+def q_ind_fun(
+            qubit, 
+            T: float = NOISE_PARAMS["T"]
+            ):
+    therm_ratio = abs(calc_therm_ratio(qubit.omega(), T))
+    therm_ratio_500MHz = calc_therm_ratio(
+        omega =  torch.tensor(2 * np.pi * 500e6), T=T
+    )
+    return (
+        500e6
+        * (
+            torch.special.scaled_modified_bessel_k0(1 / 2 * therm_ratio_500MHz)
+            * torch.sinh(1 / 2 * therm_ratio_500MHz)
+            / torch.exp(1 / 2 * therm_ratio_500MHz)
+        )
+        / (
+            torch.special.scaled_modified_bessel_k0(1 / 2 * therm_ratio)
+            * torch.sinh(1 / 2 * therm_ratio)
+            / torch.exp(1 / 2 * therm_ratio)
+        )
+    )
+
+def spectral_density_ind(
+            qubit, 
+            T: float = NOISE_PARAMS["T"]
+            ):
+        therm_ratio = calc_therm_ratio(qubit.omega(),T)
+        s = (
+            2
+            * qubit.EL
+            / qubit.q_ind_fun(T)
+            * (1 / torch.tanh(0.5 * torch.abs(therm_ratio)))
+            / (1 + torch.exp(-therm_ratio))
+        )
+        s *= (
+            2 * np.pi
+        )  # We assume that system energies are given in units of frequency
+        return s
 
 
 
