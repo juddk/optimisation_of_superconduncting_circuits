@@ -10,16 +10,16 @@ from typing import Union
 
 class ZeroPi:
     def __init__(self, 
-                 EJ: float, 
-                 EL: float , 
-                 ECJ: float, 
-                 EC: float, 
-                 dEJ: float, 
-                 dCJ: float, 
+                 EJ: torch.Tensor, 
+                 EL: torch.Tensor , 
+                 ECJ: torch.Tensor, 
+                 EC: torch.Tensor, 
+                 dEJ: torch.Tensor, 
+                 dCJ: torch.Tensor, 
+                 flux: torch.Tensor, 
                  ng: float, 
-                 flux: float, 
-                 ncut: int, 
-                 truncated_dim: int, 
+                 ncut: float, 
+                 truncated_dim: float, 
                  pt_count: int, 
                  min_val: float, 
                  max_val: float,
@@ -43,12 +43,12 @@ class ZeroPi:
         t1_supported_noise_channels = []
         qubit = sc.ZeroPi(
             grid = sc.Grid1d(min_val= self.min_val, max_val=self.max_val, pt_count=self.pt_count),
-            EJ   = self.EJ,
-            EL   = self.EL, 
-            ECJ  = self.ECJ,
-            EC   = self.EC,
+            EJ   = self.EJ.item(),
+            EL   = self.EL.item(), 
+            ECJ  = self.ECJ.item(),
+            EC   = self.EC.item(),
             ng   = self.ng,
-            flux = self.flux,
+            flux = self.flux.item(),
             ncut = self.ncut, 
             dEJ = self.dEJ, 
             dCJ = self.dCJ,
@@ -62,12 +62,12 @@ class ZeroPi:
         tphi_supported_noise_channels = []
         qubit = sc.ZeroPi(
             grid = sc.Grid1d(min_val= self.min_val, max_val=self.max_val, pt_count=self.pt_count),
-            EJ   = self.EJ,
-            EL   = self.EL, 
-            ECJ  = self.ECJ,
-            EC   = self.EC,
+            EJ   = self.EJ.item(),
+            EL   = self.EL.item(), 
+            ECJ  = self.ECJ.item(),
+            EC   = self.EC.item(),
             ng   = self.ng,
-            flux = self.flux,
+            flux = self.flux.item(),
             ncut = self.ncut, 
             dEJ = self.dEJ, 
             dCJ = self.dCJ,
@@ -83,12 +83,12 @@ class ZeroPi:
     def auto_H(self):
         create_qubit = sc.ZeroPi(
             grid = sc.Grid1d(min_val= self.min_val, max_val=self.max_val, pt_count=self.pt_count),
-            EJ   = self.EJ,
-            EL   = self.EL, 
-            ECJ  = self.ECJ,
-            EC   = self.EC,
+            EJ   = self.EJ.item(),
+            EL   = self.EL.item(), 
+            ECJ  = self.ECJ.item(),
+            EC   = self.EC.item(),
             ng   = self.ng,
-            flux = self.flux,
+            flux = self.flux.item(),
             ncut = self.ncut, 
             dEJ = self.dEJ, 
             dCJ = self.dCJ,
@@ -114,7 +114,7 @@ class ZeroPi:
         
 
     def _cos_phi_operator(self, x)-> torch.Tensor:
-        vals = np.cos(np.linspace(self.min_val, self.max_val, int(self.pt_count)) + x)
+        vals = np.cos(np.linspace(self.min_val, self.max_val, self.pt_count) + x)
         cos_phi_matrix = torch.from_numpy(dia_matrix((vals, [0]), shape=(self.pt_count, self.pt_count)).toarray())
         return cos_phi_matrix
         

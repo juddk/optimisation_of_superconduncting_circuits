@@ -8,10 +8,10 @@ import scipy as sp
 
 class Fluxonium:
     def __init__(self,
-                 EJ: float,
-                 EC: float,
-                 EL: float,
-                 flux: float,
+                 EJ: torch.Tensor,
+                 EC: torch.Tensor,
+                 EL: torch.Tensor,
+                 flux:torch.Tensor,
                  dim: int, 
                  hamiltonian_creation: str):
         self.EJ = EJ
@@ -23,7 +23,7 @@ class Fluxonium:
 
 
     def phi_operator(self):
-          phi_osc = torch.pow((8.0 * torch.tensor(self.EC)/ torch.tensor(self.EL)) , 0.25)
+          phi_osc = torch.pow((8.0 * self.EC/self.EL) , 0.25)
           phi = (
                 (torch.tensor(general.creation(self.dim),dtype=torch.double) + torch.tensor(general.annihilation(self.dim),dtype=torch.double))
                 * phi_osc/ math.sqrt(2)
@@ -45,7 +45,7 @@ class Fluxonium:
     
     def n_operator(self):
         
-        phi_osc = torch.pow((8.0 * torch.tensor(self.EC)/ torch.tensor(self.EL)) , 0.25)
+        phi_osc = torch.pow((8.0 * self.EC/ self.EL) , 0.25)
         n_op = (
                 1j
                 * (torch.tensor(general.creation(self.dim),dtype=torch.double) - torch.tensor(general.annihilation(self.dim),dtype=torch.double))
@@ -55,7 +55,7 @@ class Fluxonium:
     
     def d_hamiltonian_d_flux(self):
         
-        return -2 * np.pi * torch.tensor(self.EJ) * self.sin_phi_operator()
+        return -2 * np.pi * self.EJ * self.sin_phi_operator()
     
 
     def d_hamiltonian_d_EJ(self):
@@ -63,7 +63,7 @@ class Fluxonium:
     
 
     def create_H(self):
-        plasma_energy = torch.sqrt(8.0*torch.tensor(self.EL) *torch.tensor(self.EC))
+        plasma_energy = torch.sqrt(8.0*self.EL * self.EC)
         diag_elements = [(i + 0.5) for i in range(self.dim)]
         lc_osc = torch.tensor(np.diag(diag_elements),dtype=torch.double)
         lc_osc = lc_osc * plasma_energy
@@ -73,19 +73,19 @@ class Fluxonium:
     
     def auto_H(self):
         return torch.from_numpy(
-            sc.Fluxonium(EJ=self.EJ, EC=self.EC, EL = self.EL, flux = self.flux, cutoff= self.dim).hamiltonian())
+            sc.Fluxonium(EJ=self.EJ.item(), EC=self.EC.item(), EL = self.EL.item(), flux = self.flux.item(), cutoff= self.dim).hamiltonian())
     
 
     def t1_supported_noise_channels(self):
         t1_supported_noise_channels = []
-        for x in sc.Fluxonium(EJ=self.EJ, EC=self.EC, EL = self.EL, flux = self.flux, cutoff= self.dim).supported_noise_channels():
+        for x in sc.Fluxonium(EJ=self.EJ.item(), EC=self.EC.item(), EL = self.EL.item(), flux = self.flux.item(), cutoff= self.dim).supported_noise_channels():
             if x.startswith("t1"):
                 t1_supported_noise_channels.append(x)
         return t1_supported_noise_channels
 
     def tphi_supported_noise_channels(self):
         tphi_supported_noise_channels = []
-        for x in sc.Fluxonium(EJ=self.EJ, EC=self.EC, EL = self.EL, flux = self.flux, cutoff= self.dim).supported_noise_channels():
+        for x in sc.Fluxonium(EJ=self.EJ.item(), EC=self.EC.item(), EL = self.EL.item(), flux = self.flux.item(), cutoff= self.dim).supported_noise_channels():
             if x.startswith("tphi"):
                 tphi_supported_noise_channels.append(x)
         return tphi_supported_noise_channels
