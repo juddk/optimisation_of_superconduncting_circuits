@@ -133,7 +133,9 @@ class ZeroPi:
             dCJ = self.dCJ.item(),
         )
         
-        return torch.from_numpy(create_qubit.hamiltonian().toarray())
+        native_basis = torch.from_numpy(create_qubit.hamiltonian().toarray())
+        
+        return native_basis
     
     
     def t1_supported_noise_channels(self):
@@ -183,10 +185,11 @@ class ZeroPi:
         return eigvals,eigvecs
     
     def omega(self):
-        eigvals,eigvecs = self.esys()
+        #omega in units of radian per second
+        eigvals = self.esys()[0]
         ground_E = eigvals[0]
         excited_E = eigvals[1]
-        return 2 * np.pi * (excited_E - ground_E) * 1e9
+        return 2 * np.pi * (excited_E - ground_E) 
     
 
     #OPERATORS
@@ -244,9 +247,9 @@ class ZeroPi:
         phi_operator = torch.kron(
             self._phi_operator(),
             self._identity_theta())
-        return phi_operator
-    #Noise.process_op(native_op=native, energy_esys=Noise.energy_esys(self.H()), truncated_dim=self.truncated_dim)
-    
+        eigvecs = self.esys()[1]
+        return general.change_operator_basis(phi_operator, eigvecs)
+  
 
     def _phi_operator(self)-> torch.Tensor:
         phi_matrix = sparse.dia_matrix((self.pt_count, self.pt_count))
@@ -261,9 +264,10 @@ class ZeroPi:
         self._cos_phi_operator(x=-2.0 * np.pi * self.flux.item() / 2.0),
         self._cos_theta_operator()
         )
-        return d_potential_d_EJ_mat
-    #Noise.process_op(native_op=d_potential_d_EJ_mat, energy_esys=Noise().energy_esys, truncated_dim = self.truncated_dim)
-    
+        eigvecs = self.esys()[1]
+        return general.change_operator_basis(d_potential_d_EJ_mat, eigvecs)
+        
+   
 
     def d_hamiltonian_d_flux(self)-> torch.Tensor:
         op_1 = torch.kron(
@@ -275,10 +279,9 @@ class ZeroPi:
                 self._sin_theta_operator()
             )
         d_potential_d_flux_mat =  -2.0 * np.pi * self.EJ * op_1 - np.pi * self.EJ * self.dEJ * op_2
-        
-        return d_potential_d_flux_mat
     
-    #process_op(native_op=d_potential_d_flux_mat, energy_esys=energy_esys, truncated_dim=truncated_dim)
+        eigvecs = self.esys()[1]
+        return general.change_operator_basis(d_potential_d_flux_mat, eigvecs)
 
     
    

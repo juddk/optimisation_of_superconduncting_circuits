@@ -27,7 +27,6 @@ class Fluxonium:
         diag_elements = [(i + 0.5) for i in range(self.dim)]
         lc_osc = torch.tensor(np.diag(diag_elements),dtype=torch.double)
         lc_osc = lc_osc * plasma_energy
-        
         return lc_osc - self.EJ*self.cos_phi_operator()
     
     def auto_H(self):
@@ -48,7 +47,6 @@ class Fluxonium:
                 tphi_supported_noise_channels.append(x)
         return tphi_supported_noise_channels
     
-
     def esys(self):
         if self.hamiltonian_creation == 'create_H':
             eigvals,eigvecs = torch.linalg.eigh(self.create_H())
@@ -57,43 +55,43 @@ class Fluxonium:
         return eigvals,eigvecs
     
     def omega(self):
-        eigvals,eigvecs = self.esys()
+        #omega in units of radian per second
+        eigvals = self.esys()[0]
         ground_E = eigvals[0]
         excited_E = eigvals[1]
-        return 2 * np.pi * (excited_E - ground_E) * 1e9
+        return 2 * np.pi * (excited_E - ground_E) 
 
     #OPERATORS
     def phi_operator(self):
           phi_osc = torch.pow((8.0 * self.EC/self.EL) , 0.25)
-          phi = (
-                (torch.tensor(general.creation(self.dim),dtype=torch.double) + torch.tensor(general.annihilation(self.dim),dtype=torch.double))
-                * phi_osc/ math.sqrt(2)
-            )
-          return phi 
+          phi = ((torch.tensor(general.creation(self.dim),dtype=torch.double) 
+                + torch.tensor(general.annihilation(self.dim),dtype=torch.double))
+                * phi_osc/ math.sqrt(2))
+          #in scqubits they convert to energy eigenbasis but causes circular problem here as this is used to define H
+          return phi
 
     def cos_phi_operator(self):
         argument = self.phi_operator() + 2 * np.pi * self.flux * torch.tensor(np.eye(self.dim),dtype=torch.double)
         cos_phi = (torch.linalg.matrix_exp(argument*1j)+torch.linalg.matrix_exp(argument*-1j))/2
+        #in scqubits they convert to energy eigenbasis but causes circular problem here as this is used to define H
         return cos_phi
     
     def sin_phi_operator(self):
         argument = self.phi_operator() + 2 * np.pi * self.flux * torch.tensor(np.eye(self.dim),dtype=torch.double)
         sin_phi = (torch.linalg.matrix_exp(argument*1j)-torch.linalg.matrix_exp(argument*-1j))/2j
-        return sin_phi 
+        return general.change_operator_basis(sin_phi, self.esys()[1])
     
     def n_operator(self):
         phi_osc = torch.pow((8.0 * self.EC/ self.EL) , 0.25)
-        n_op = (
-                1j
+        n_op = (1j
                 * (torch.tensor(general.creation(self.dim),dtype=torch.double) - torch.tensor(general.annihilation(self.dim),dtype=torch.double))
-                / (phi_osc * math.sqrt(2))
-            )
-        return n_op
+                / (phi_osc * math.sqrt(2)))
+        return general.change_operator_basis(n_op, self.esys()[1])
     
     def d_hamiltonian_d_flux(self):
-        return -2 * np.pi * self.EJ * self.sin_phi_operator()
-    
+        d_ham_d_flux = -2 * np.pi * self.EJ * self.sin_phi_operator()
+        return general.change_operator_basis(d_ham_d_flux, self.esys()[1])
 
     def d_hamiltonian_d_EJ(self):
-        return -self.cos_phi_operator()
+        return general.change_operator_basis(-self.cos_phi_operator(), self.esys()[1])
     
