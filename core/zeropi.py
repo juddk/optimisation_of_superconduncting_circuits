@@ -186,6 +186,7 @@ class ZeroPi:
     
     def omega(self):
         #omega in units of radian per second
+        ### in zero pi do we take the 1st and 2nd Energy levels?
         eigvals = self.esys()[0]
         ground_E = eigvals[0]
         excited_E = eigvals[1]

@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import scipy as sp
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
+import numpy as np
 
 #NOISE_PARAMS TAKEN FROM SCQUBITS
 NOISE_PARAMS = {
@@ -34,6 +35,7 @@ def calc_therm_ratio(
     omega: float, 
     T: float = NOISE_PARAMS["T"]
     ):
+    #omega must be in units of radians/s
     return (sp.constants.hbar * omega) / (sp.constants.k * T)
 
 
@@ -68,6 +70,8 @@ def t1_rate(
         rate = torch.matmul(noise_op.to(torch.complex128),ground.T.to(torch.complex128))
         rate = torch.matmul(excited.conj().to(torch.complex128),rate)
         rate = torch.pow(torch.abs(rate) , 2) * s
+        c  =1
+        rate = rate/c
 
         return rate
 
@@ -151,7 +155,7 @@ def effective_tphi_rate(
 
 
 #T2 RATE
-def t2_rate(qubit #Union[ZeroPi, Fluxonium], 
+def t2_rate(qubit, #Union[ZeroPi, Fluxonium], 
        t1_noise_channels: Union[str, List[str]],
        tphi_noise_channels: Union[str, List[str]]
        )-> torch.Tensor:
@@ -178,8 +182,8 @@ def spectral_density_cap(qubit,
         * 8
         * qubit.EC
         / q_cap_fun(qubit)
-        * (1 / torch.tanh(0.5 * torch.abs(therm_ratio)))
-        / (1 + torch.exp(-therm_ratio))
+        * (1 / np.tanh(0.5 * np.abs(therm_ratio)))
+        / (1 + np.exp(-therm_ratio))
     )
     s *= (
         2 * np.pi
