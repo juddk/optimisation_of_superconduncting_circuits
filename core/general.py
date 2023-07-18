@@ -2,7 +2,7 @@ import torch
 import numpy as np
 import scipy as sp
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
-import numpy as np
+
 
 #NOISE_PARAMS TAKEN FROM SCQUBITS
 NOISE_PARAMS = {
@@ -17,7 +17,7 @@ NOISE_PARAMS = {
     "R_0": 50,  # Characteristic impedance of a transmission line. Units: Ohms
     "T": 0.015,  # Typical temperature for a superconducting circuit experiment. Units: K
     "M": 400,  # Mutual inductance between qubit and a flux line. Units: \Phi_0 / Ampere
-    "R_k": 25812.807 ##sp.constants.h/ sp.constants.e**2.0,  # Normal quantum resistance, aka Klitzing constant.
+    "R_k": 25812.807  # sp.constants.h/ sp.constants.e**2.0   # Normal quantum resistance, aka Klitzing constant.
     # Note, in some papers a superconducting quantum
     # resistance is used, and defined as: h/(2e)^2
 }
@@ -50,7 +50,7 @@ def creation(
     return annihilation(dimension).T
 
 def omega(qubit) -> torch.Tensor:
-    #angular frequency between ground and excited states converted to GHz
+    #angular frequency between ground and excited states
     eigvals = qubit.esys()[0]
     ground_E = eigvals[0]
     excited_E = eigvals[1]
@@ -73,8 +73,7 @@ def t1_rate(
         rate = torch.matmul(noise_op.to(torch.complex128),ground.T.to(torch.complex128))
         rate = torch.matmul(excited.conj().to(torch.complex128),rate)
         rate = torch.pow(torch.abs(rate) , 2) * s
-        c  =1
-        rate = rate/c
+        rate = rate
 
         #Returns rate in 1/(2pi*1e9) s
 
@@ -131,7 +130,10 @@ def effective_t1_rate(
          t1 += t1_rate(noise_op = qubit.phi_operator(), spectral_density = spectral_density_ind(qubit, T), eigvecs = eigvecs)
 
     if "t1_quasiparticle_tunneling" in noise_channels:
-         t1 += t1_rate(noise_op = qt_noise_op(qubit), spectral_density = spectral_density_qt(qubit, T), eigvecs = eigvecs)
+         t1 += t1_rate(
+              noise_op = qubit.sin_phi_operator(alpha=0.5, beta=0.5 * (2 * np.pi * qubit.flux)), 
+              spectral_density = spectral_density_qt(qubit, T), 
+              eigvecs = eigvecs)
 
     return t1
 
@@ -187,8 +189,8 @@ def spectral_density_cap(qubit,
         * 8
         * qubit.EC
         / q_cap_fun(qubit)
-        * (1 / np.tanh(0.5 * np.abs(therm_ratio)))
-        / (1 + np.exp(-therm_ratio))
+        * (1 / torch.tanh(0.5 * torch.abs(therm_ratio)))
+        / (1 + torch.exp(-therm_ratio))
     )
     s *= (
         2 * np.pi
@@ -209,14 +211,14 @@ def spectral_density_fbl(
             2
             * (2 * np.pi) ** 2
             * M**2
-            * (omega(qubit))
+            * (omega(qubit) *1e9)
             * sp.constants.hbar
             / R_0
             * (1 / torch.tanh(0.5 * therm_ratio))
             / (1 + torch.exp(-therm_ratio))
             )
-        s *= 1e9 ** 2.0 # We assume that system energies are given in units of frequency
-        return s
+         #Unsure why an extra factor of 1e9 is needed?
+        return s *1e9
 
 #CHARGE IMPEDANCE
 def spectral_density_ci(
@@ -290,7 +292,7 @@ def y_qp_fun(
     
     
     Delta_in_Hz = Delta * sp.constants.e / sp.constants.h
-    omega_in_Hz = torch.abs(omega(qubit)) / (2 * np.pi) 
+    omega_in_Hz = torch.abs(omega(qubit))*1e9 / (2 * np.pi) 
     EJ_in_Hz = qubit.EJ * 1e9 # GHz to Hz
 
     therm_ratio = calc_therm_ratio(omega(qubit), T)
@@ -311,19 +313,11 @@ def spectral_density_qt(
           qubit, 
           T: float = NOISE_PARAMS["T"],
           ):
-    therm_ratio = calc_therm_ratio(omega(qubit), T)
+    therm_ratio = calc_therm_ratio(torch.abs(omega(qubit)), T)
     return (
         2
-        * omega(qubit) / 1e9
+        * torch.abs(omega(qubit)) 
         * complex(y_qp_fun(qubit)).real
         * (1 / torch.tanh(0.5 * therm_ratio))
         / (1 + torch.exp(-therm_ratio))
     )
-    
-def qt_noise_op(qubit):
-    argument = qubit.phi_operator() + 2 * np.pi * qubit.flux * torch.tensor(np.eye(qubit.dim),dtype=torch.double)
-    qt_argument = argument/2
-    return (torch.linalg.matrix_exp(qt_argument*1j)-torch.linalg.matrix_exp(qt_argument*-1j))/2j
-
-
-
