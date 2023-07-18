@@ -63,12 +63,7 @@ class Fluxonium:
             eigvals,eigvecs = torch.linalg.eigh(self.auto_H())
         return eigvals,eigvecs
     
-    def omega(self):
-        #omega in units of radian per second
-        eigvals = self.esys()[0]
-        ground_E = eigvals[0]
-        excited_E = eigvals[1]
-        return 2 * np.pi * (excited_E - ground_E) 
+  
 
     #OPERATORS
     def phi_operator(self) -> torch.Tensor:

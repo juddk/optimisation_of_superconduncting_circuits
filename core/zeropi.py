@@ -118,7 +118,7 @@ class ZeroPi:
         return
    
 
-    def auto_H(self):
+    def auto_H(self) -> torch.Tensor:
 
         create_qubit = sc.ZeroPi(
             grid = sc.Grid1d(min_val= self.min_val, max_val=self.max_val, pt_count=self.pt_count),
@@ -133,9 +133,9 @@ class ZeroPi:
             dCJ = self.dCJ.item(),
         )
         
-        native_basis = torch.from_numpy(create_qubit.hamiltonian().toarray())
+        H = torch.from_numpy(create_qubit.hamiltonian().toarray())
         
-        return native_basis
+        return H
     
     
     def t1_supported_noise_channels(self):
@@ -184,25 +184,23 @@ class ZeroPi:
             eigvals,eigvecs = torch.linalg.eigh(self.auto_H())
         return eigvals,eigvecs
     
-    def omega(self):
-        #omega in units of radian per second
-        ### in zero pi do we take the 1st and 2nd Energy levels?
-        eigvals = self.esys()[0]
-        ground_E = eigvals[0]
-        excited_E = eigvals[1]
-        return 2 * np.pi * (excited_E - ground_E) 
-    
 
     #OPERATORS
     def _identity_theta(self) -> torch.Tensor:
         dim_theta = 2 * self.ncut + 1
         return torch.eye(dim_theta)
         
-
+    ###we may need x to be a tensor - see uses of the _cos_phi_operator and _sin_phi_operator
     def _cos_phi_operator(self, x)-> torch.Tensor:
         vals = np.cos(np.linspace(self.min_val, self.max_val, self.pt_count) + x)
         cos_phi_matrix = torch.from_numpy(dia_matrix((vals, [0]), shape=(self.pt_count, self.pt_count)).toarray())
         return cos_phi_matrix
+
+    def _sin_phi_operator(self,x)-> torch.Tensor:
+        vals = np.sin(np.linspace(self.min_val, self.max_val, self.pt_count)+x)
+        return torch.from_numpy(
+            sparse.dia_matrix((vals, [0]), shape=(self.pt_count, self.pt_count)).toarray())
+
         
     def _cos_theta_operator(self):
         dim_theta = 2 * self.ncut + 1
@@ -220,12 +218,6 @@ class ZeroPi:
             ).toarray())
         return cos_theta_matrix
         
-
-    def _sin_phi_operator(self,x)-> torch.Tensor:
-        vals = np.sin(np.linspace(self.min_val, self.max_val, self.pt_count)+x)
-        return torch.from_numpy(
-            sparse.dia_matrix((vals, [0]), shape=(self.pt_count, self.pt_count)).toarray())
-
 
     def _sin_theta_operator(self)-> torch.Tensor:
         dim_theta = 2 * self.ncut + 1
@@ -248,8 +240,8 @@ class ZeroPi:
         phi_operator = torch.kron(
             self._phi_operator(),
             self._identity_theta())
-        eigvecs = self.esys()[1]
-        return general.change_operator_basis(phi_operator, eigvecs)
+        
+        return phi_operator
   
 
     def _phi_operator(self)-> torch.Tensor:
@@ -265,8 +257,10 @@ class ZeroPi:
         self._cos_phi_operator(x=-2.0 * np.pi * self.flux.item() / 2.0),
         self._cos_theta_operator()
         )
-        eigvecs = self.esys()[1]
-        return general.change_operator_basis(d_potential_d_EJ_mat, eigvecs)
+        
+
+        ###the flux.item() could be an issue for computing gradients
+        return d_potential_d_EJ_mat
         
    
 
@@ -280,9 +274,8 @@ class ZeroPi:
                 self._sin_theta_operator()
             )
         d_potential_d_flux_mat =  -2.0 * np.pi * self.EJ * op_1 - np.pi * self.EJ * self.dEJ * op_2
-    
-        eigvecs = self.esys()[1]
-        return general.change_operator_basis(d_potential_d_flux_mat, eigvecs)
+         ###the flux.item() could be an issue for computing gradients
+        return d_potential_d_flux_mat 
 
     
    
