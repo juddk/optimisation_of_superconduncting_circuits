@@ -208,8 +208,27 @@ class ZeroPi:
 
     # OPERATORS NEEDED FOR HAMILTONIAN CREATION
 
-    def band_matrix():
-        return
+    def band_matrix(band_coeffs, band_offsets, dim, dtype, has_corners):
+        ones_vector = np.ones(dim)
+        vectors = [ones_vector * number for number in band_coeffs]
+        matrix = sparse.dia_matrix(
+            (vectors, band_offsets), shape=(dim, dim), dtype=dtype
+        )
+        if not has_corners:
+            return matrix.tocsc()
+        for index, offset in enumerate(band_offsets):
+            if offset < 0:
+                corner_offset = dim + offset
+                corner_band = vectors[index]
+                corner_band = corner_band[offset:]
+            elif offset > 0:
+                corner_offset = -dim + offset
+                corner_band = vectors[index][:-offset]
+                corner_band = corner_band[-offset:]
+            else:  # when offset == 0
+                continue
+            matrix.setdiag(corner_band, k=corner_offset)
+        return torch.from_numpy(matrix.toarray())
 
     def first_derivative_matrix(self, prefactor):
         if isinstance(prefactor, complex):
@@ -223,14 +242,34 @@ class ZeroPi:
             for coefficient in [-1 / 60, 3 / 20, -3 / 4, 0.0, 3 / 4, -3 / 20, 1 / 60]
         ]
         offset = [i - (7 - 1) // 2 for i in range(7)]
+        print(matrix_diagonals)
+        print(offset)
+        print(self.pt_count)
+        print(dtp)
 
-        return self.band_matrix(
-            matrix_diagonals, offset, self.pt_count, dtype=dtp, has_corners=False
-        )
+        return self.band_matrix(matrix_diagonals, offset, self.pt_count, dtp, False)
 
     def second_derivative_matrix(self, prefactor):
-        # NEED TO FILL IN
-        return
+        if isinstance(prefactor, complex):
+            dtp = np.complex_
+        else:
+            dtp = np.float_
+
+        delta_x = (self.max_val - self.min_val) / (self.pt_count - 1)
+        matrix_diagonals = [
+            coefficient * prefactor / delta_x**2
+            for coefficient in [
+                1 / 90,
+                -3 / 20,
+                3 / 2,
+                -49 / 18,
+                3 / 2,
+                -3 / 20,
+                1 / 90,
+            ]
+        ]
+        offset = [i - (7 - 1) // 2 for i in range(7)]
+        return self.band_matrix(matrix_diagonals, offset, self.pt_count, dtp, False)
 
     def i_d_dphi_operator(self):
         return torch.kron(

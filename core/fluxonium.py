@@ -101,9 +101,8 @@ class Fluxonium:
 
     def cos_phi_operator(self, alpha: float = 1.0, beta: float = 0.0):
         # Returns the cos phi operator in the LC harmonic oscillator basis
-
         argument = alpha * self.phi_operator() + beta * torch.eye(self.dim)
-
+        
         # since pytorch does not have a cosm fucntion, use exponential form
         cos_phi = (
             torch.linalg.matrix_exp(argument * 1j)
