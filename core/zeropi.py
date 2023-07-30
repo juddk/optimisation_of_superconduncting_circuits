@@ -9,6 +9,7 @@ from typing import Union
 
 
 class ZeroPi:
+    # All values in GHz
     def __init__(
         self,
         EJ: torch.Tensor,
@@ -50,9 +51,7 @@ class ZeroPi:
 
     def auto_H(self) -> torch.Tensor:
         create_qubit = sc.ZeroPi(
-            grid=sc.Grid1d(
-                min_val=self.min_val, max_val=self.max_val, pt_count=self.pt_count
-            ),
+            grid=sc.Grid1d(min_val=self.min_val, max_val=self.max_val, pt_count=self.pt_count),
             EJ=self.EJ.item(),
             EL=self.EL.item(),
             ECJ=self.ECJ.item(),
@@ -69,9 +68,7 @@ class ZeroPi:
     def t1_supported_noise_channels(self):
         t1_supported_noise_channels = []
         qubit = sc.ZeroPi(
-            grid=sc.Grid1d(
-                min_val=self.min_val, max_val=self.max_val, pt_count=self.pt_count
-            ),
+            grid=sc.Grid1d(min_val=self.min_val, max_val=self.max_val, pt_count=self.pt_count),
             EJ=self.EJ.item(),
             EL=self.EL.item(),
             ECJ=self.ECJ.item(),
@@ -90,9 +87,7 @@ class ZeroPi:
     def tphi_supported_noise_channels(self):
         tphi_supported_noise_channels = []
         qubit = sc.ZeroPi(
-            grid=sc.Grid1d(
-                min_val=self.min_val, max_val=self.max_val, pt_count=self.pt_count
-            ),
+            grid=sc.Grid1d(min_val=self.min_val, max_val=self.max_val, pt_count=self.pt_count),
             EJ=self.EJ.item(),
             EL=self.EL.item(),
             ECJ=self.ECJ.item(),
@@ -123,9 +118,7 @@ class ZeroPi:
     ###we may need x to be a tensor - see uses of the _cos_phi_operator and _sin_phi_operator
     def _cos_phi_operator(self, x) -> torch.Tensor:
         vals = np.cos(np.linspace(self.min_val, self.max_val, self.pt_count) + x)
-        cos_phi_matrix = torch.from_numpy(
-            dia_matrix((vals, [0]), shape=(self.pt_count, self.pt_count)).toarray()
-        )
+        cos_phi_matrix = torch.from_numpy(dia_matrix((vals, [0]), shape=(self.pt_count, self.pt_count)).toarray())
         return cos_phi_matrix
 
     def _cos_theta_operator(self):
@@ -134,12 +127,8 @@ class ZeroPi:
             (
                 0.5
                 * (
-                    sparse.dia_matrix(
-                        ([1.0] * dim_theta, [-1]), shape=(dim_theta, dim_theta)
-                    )
-                    + sparse.dia_matrix(
-                        ([1.0] * dim_theta, [1]), shape=(dim_theta, dim_theta)
-                    )
+                    sparse.dia_matrix(([1.0] * dim_theta, [-1]), shape=(dim_theta, dim_theta))
+                    + sparse.dia_matrix(([1.0] * dim_theta, [1]), shape=(dim_theta, dim_theta))
                 )
             ).toarray()
         )
@@ -147,11 +136,7 @@ class ZeroPi:
 
     def _sin_phi_operator(self, x) -> torch.Tensor:
         vals = np.sin(np.linspace(self.min_val, self.max_val, self.pt_count) + x)
-        return torch.from_numpy(
-            sparse.dia_matrix(
-                (vals, [0]), shape=(self.pt_count, self.pt_count)
-            ).toarray()
-        )
+        return torch.from_numpy(sparse.dia_matrix((vals, [0]), shape=(self.pt_count, self.pt_count)).toarray())
 
     def _sin_theta_operator(self) -> torch.Tensor:
         dim_theta = 2 * self.ncut + 1
@@ -159,12 +144,8 @@ class ZeroPi:
             -0.5
             * 1j
             * (
-                sparse.dia_matrix(
-                    ([1.0] * dim_theta, [-1]), shape=(dim_theta, dim_theta)
-                )
-                - sparse.dia_matrix(
-                    ([1.0] * dim_theta, [1]), shape=(dim_theta, dim_theta)
-                )
+                sparse.dia_matrix(([1.0] * dim_theta, [-1]), shape=(dim_theta, dim_theta))
+                - sparse.dia_matrix(([1.0] * dim_theta, [1]), shape=(dim_theta, dim_theta))
             ).toarray()
         )
         return sin_theta_matrix
@@ -199,9 +180,7 @@ class ZeroPi:
             self._cos_phi_operator(x=-2.0 * np.pi * self.flux.item() / 2.0),
             self._sin_theta_operator(),
         )
-        d_potential_d_flux_mat = (
-            -2.0 * np.pi * self.EJ * op_1 - np.pi * self.EJ * self.dEJ * op_2
-        )
+        d_potential_d_flux_mat = -2.0 * np.pi * self.EJ * op_1 - np.pi * self.EJ * self.dEJ * op_2
 
         ###the flux.item() could be an issue for computing gradients
         return d_potential_d_flux_mat
@@ -211,9 +190,7 @@ class ZeroPi:
     def band_matrix(band_coeffs, band_offsets, dim, dtype, has_corners):
         ones_vector = np.ones(dim)
         vectors = [ones_vector * number for number in band_coeffs]
-        matrix = sparse.dia_matrix(
-            (vectors, band_offsets), shape=(dim, dim), dtype=dtype
-        )
+        matrix = sparse.dia_matrix((vectors, band_offsets), shape=(dim, dim), dtype=dtype)
         if not has_corners:
             return matrix.tocsc()
         for index, offset in enumerate(band_offsets):
@@ -238,8 +215,7 @@ class ZeroPi:
 
         delta_x = (self.max_val - self.min_val) / (self.pt_count - 1)
         matrix_diagonals = [
-            coefficient * prefactor / delta_x
-            for coefficient in [-1 / 60, 3 / 20, -3 / 4, 0.0, 3 / 4, -3 / 20, 1 / 60]
+            coefficient * prefactor / delta_x for coefficient in [-1 / 60, 3 / 20, -3 / 4, 0.0, 3 / 4, -3 / 20, 1 / 60]
         ]
         offset = [i - (7 - 1) // 2 for i in range(7)]
         print(matrix_diagonals)
@@ -272,17 +248,13 @@ class ZeroPi:
         return self.band_matrix(matrix_diagonals, offset, self.pt_count, dtp, False)
 
     def i_d_dphi_operator(self):
-        return torch.kron(
-            self.first_derivative_matrix(prefactor=1j), self._identity_theta()
-        )
+        return torch.kron(self.first_derivative_matrix(prefactor=1j), self._identity_theta())
 
     def n_theta_operator(self):
         dim_theta = 2 * self.ncut + 1
         diag_elements = np.arange(-self.ncut, self.ncut + 1)
         n_theta_matrix = torch.from_numpy(
-            sparse.dia_matrix((diag_elements, [0]), shape=(dim_theta, dim_theta))
-            .tocsc()
-            .toarray()
+            sparse.dia_matrix((diag_elements, [0]), shape=(dim_theta, dim_theta)).tocsc().toarray()
         )
         return torch.kron(self._identity_phi(), n_theta_matrix)
 
@@ -299,30 +271,16 @@ class ZeroPi:
         identity_theta = torch.eye(dim_theta)
         kinetic_matrix_phi = self.second_derivative_matrix(prefactor=-2.0 * self.ECJ)
 
-        diag_elements = (
-            2.0
-            * self.ECS
-            * torch.square(torch.arange(-self.ncut + self.ng, self.ncut + 1 + self.ng))
-        )
+        diag_elements = 2.0 * self.ECS * torch.square(torch.arange(-self.ncut + self.ng, self.ncut + 1 + self.ng))
 
         ##THIS WONT WORK FOR COMPUTING GRAD
         kinetic_matrix_theta = torch.from_numpy(
-            sparse.dia_matrix((diag_elements, [0]), shape=(dim_theta, dim_theta))
-            .tocsc()
-            .toarray()
+            sparse.dia_matrix((diag_elements, [0]), shape=(dim_theta, dim_theta)).tocsc().toarray()
         )
 
-        kinetic_matrix = torch.kron(kinetic_matrix_phi, identity_theta) + torch.kron(
-            identity_phi, kinetic_matrix_theta
-        )
+        kinetic_matrix = torch.kron(kinetic_matrix_phi, identity_theta) + torch.kron(identity_phi, kinetic_matrix_theta)
         if self.dCJ != 0:
-            kinetic_matrix -= (
-                2.0
-                * self.ECS
-                * self.dCJ
-                * self.i_d_dphi_operator()
-                * self.n_theta_operator()
-            )
+            kinetic_matrix -= 2.0 * self.ECS * self.dCJ * self.i_d_dphi_operator() * self.n_theta_operator()
         return kinetic_matrix
 
     # Potential Part
@@ -333,39 +291,27 @@ class ZeroPi:
         phi_inductive_vals = self.EL * torch.square(grid_linspace)
 
         phi_inductive_potential = torch.from_numpy(
-            sparse.dia_matrix(
-                (phi_inductive_vals, [0]), shape=(self.pt_count, self.pt_count)
-            )
-            .tocsc()
-            .toarray()
+            sparse.dia_matrix((phi_inductive_vals, [0]), shape=(self.pt_count, self.pt_count)).tocsc().toarray()
         )
 
         phi_cos_vals = torch.cos(grid_linspace - 2.0 * np.pi * self.flux / 2.0)
 
         phi_cos_potential = torch.from_numpy(
-            sparse.dia_matrix((phi_cos_vals, [0]), shape=(self.pt_count, self.pt_count))
-            .tocsc()
-            .toarray()
+            sparse.dia_matrix((phi_cos_vals, [0]), shape=(self.pt_count, self.pt_count)).tocsc().toarray()
         )
 
         phi_sin_vals = torch.sin(grid_linspace - 2.0 * np.pi * self.flux / 2.0)
 
         phi_sin_potential = torch.from_numpy(
-            sparse.dia_matrix((phi_sin_vals, [0]), shape=(self.pt_count, self.pt_count))
-            .tocsc()
-            .toarray()
+            sparse.dia_matrix((phi_sin_vals, [0]), shape=(self.pt_count, self.pt_count)).tocsc().toarray()
         )
 
         theta_cos_potential = torch.from_numpy(
             (
                 -self.EJ
                 * (
-                    sparse.dia_matrix(
-                        ([1.0] * dim_theta, [-1]), shape=(dim_theta, dim_theta)
-                    )
-                    + sparse.dia_matrix(
-                        ([1.0] * dim_theta, [1]), shape=(dim_theta, dim_theta)
-                    )
+                    sparse.dia_matrix(([1.0] * dim_theta, [-1]), shape=(dim_theta, dim_theta))
+                    + sparse.dia_matrix(([1.0] * dim_theta, [1]), shape=(dim_theta, dim_theta))
                 )
             )
             .tocsc()
@@ -379,9 +325,6 @@ class ZeroPi:
         )
         if self.dEJ != 0:
             potential_mat += (
-                self.EJ
-                * self.dEJ
-                * torch.kron(phi_sin_potential, self._identity_theta())
-                * self.sin_theta_operator()
+                self.EJ * self.dEJ * torch.kron(phi_sin_potential, self._identity_theta()) * self.sin_theta_operator()
             )
         return potential_mat

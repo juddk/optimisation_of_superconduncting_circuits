@@ -7,6 +7,7 @@ import scipy as sp
 
 
 class Fluxonium:
+    # All Values given in GHz
     def __init__(
         self,
         EJ: torch.Tensor,
@@ -33,7 +34,7 @@ class Fluxonium:
         diag_elements = [(i + 0.5) for i in range(self.dim)]
         lc_osc = torch.tensor(np.diag(diag_elements), dtype=torch.double)
         lc_osc = lc_osc * plasma_energy
-        cos_phi = self.cos_phi_operator(beta=2 * np.pi * self.flux)
+        cos_phi = self.cos_phi_operator(alpha=1, beta=2 * np.pi * self.flux)
 
         return lc_osc - self.EJ * cos_phi
 
@@ -101,23 +102,17 @@ class Fluxonium:
 
     def cos_phi_operator(self, alpha: float = 1.0, beta: float = 0.0):
         # Returns the cos phi operator in the LC harmonic oscillator basis
-        argument = alpha * self.phi_operator() + beta * torch.eye(self.dim)
-        
+        argument = alpha * self.phi_operator() + beta * torch.tensor(np.eye(self.dim), dtype=torch.double)
+
         # since pytorch does not have a cosm fucntion, use exponential form
-        cos_phi = (
-            torch.linalg.matrix_exp(argument * 1j)
-            + torch.linalg.matrix_exp(argument * -1j)
-        ) / 2
+        cos_phi = (torch.linalg.matrix_exp(argument * 1j) + torch.linalg.matrix_exp(argument * -1j)) / 2
 
         return cos_phi
 
     def sin_phi_operator(self, alpha: float = 1.0, beta: float = 0.0):
         # Returns the sin phi operator in the LC harmonic oscillator basis
-        argument = alpha * self.phi_operator() + beta * torch.eye(self.dim)
-        sin_phi = (
-            torch.linalg.matrix_exp(argument * 1j)
-            - torch.linalg.matrix_exp(argument * -1j)
-        ) / 2j
+        argument = alpha * self.phi_operator() + beta * torch.tensor(np.eye(self.dim), dtype=torch.double)
+        sin_phi = (torch.linalg.matrix_exp(argument * 1j) - torch.linalg.matrix_exp(argument * -1j)) / 2j
 
         return sin_phi
 
@@ -141,12 +136,7 @@ class Fluxonium:
         # Returns operator representing a derivative of the Hamiltonian with respect to
         # flux in the harmonic-oscillator (charge) basis
 
-        d_ham_d_flux = (
-            -2
-            * np.pi
-            * self.EJ
-            * self.sin_phi_operator(alpha=1, beta=2 * np.pi * self.flux)
-        )
+        d_ham_d_flux = -2 * np.pi * self.EJ * self.sin_phi_operator(alpha=1, beta=2 * np.pi * self.flux)
         return d_ham_d_flux
 
     def d_hamiltonian_d_EJ(self):

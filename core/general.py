@@ -2,7 +2,7 @@ import torch
 import numpy as np
 import scipy as sp
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
-
+import scipy.constants
 
 # NOISE_PARAMS TAKEN FROM SCQUBITS
 NOISE_PARAMS = {
@@ -17,7 +17,7 @@ NOISE_PARAMS = {
     "R_0": 50,  # Characteristic impedance of a transmission line. Units: Ohms
     "T": 0.015,  # Typical temperature for a superconducting circuit experiment. Units: K
     "M": 400,  # Mutual inductance between qubit and a flux line. Units: \Phi_0 / Ampere
-    "R_k": 25812.807  # sp.constants.h/ sp.constants.e**2.0   # Normal quantum resistance, aka Klitzing constant.
+    "R_k": sp.constants.h / (sp.constants.e**2.0)  # Normal quantum resistance, aka Klitzing constant.
     # Note, in some papers a superconducting quantum
     # resistance is used, and defined as: h/(2e)^2
 }
@@ -91,6 +91,7 @@ def tphi_rate(
 ) -> torch.Tensor:
     ground = eigvecs[:, 0]
     excited = eigvecs[:, 1]
+
     rate = torch.abs(
         torch.matmul(
             ground.conj().to(torch.complex128),
@@ -124,37 +125,37 @@ def effective_t1_rate(
     if "t1_capacitive" in noise_channels:
         t1 += t1_rate(
             noise_op=qubit.n_operator(),
-            spectral_density=spectral_density_cap(qubit, T),
+            spectral_density=spectral_density_cap(qubit, True, T) + spectral_density_cap(qubit, False, T),
             eigvecs=qubit.esys()[1],
         )
 
     if "t1_flux_bias_line" in noise_channels:
         t1 += t1_rate(
             noise_op=qubit.d_hamiltonian_d_flux(),
-            spectral_density=spectral_density_fbl(qubit, M, R_0, T),
+            spectral_density=spectral_density_fbl(qubit, True, M, R_0, T)
+            + spectral_density_fbl(qubit, False, M, R_0, T),
             eigvecs=qubit.esys()[1],
         )
 
     if "t1_charge_impedance" in noise_channels:
         t1 += t1_rate(
             noise_op=qubit.n_operator(),
-            spectral_density=spectral_density_ci(qubit, R_0, T, R_k),
+            spectral_density=spectral_density_ci(qubit, True, R_0, T, R_k)
+            + spectral_density_ci(qubit, False, R_0, T, R_k),
             eigvecs=qubit.esys()[1],
         )
 
     if "t1_inductive" in noise_channels:
         t1 += t1_rate(
             noise_op=qubit.phi_operator(),
-            spectral_density=spectral_density_ind(qubit, T),
+            spectral_density=spectral_density_ind(qubit, True, T) + spectral_density_ind(qubit, False, T),
             eigvecs=qubit.esys()[1],
         )
 
     if "t1_quasiparticle_tunneling" in noise_channels:
         t1 += t1_rate(
-            noise_op=qubit.sin_phi_operator(
-                alpha=0.5, beta=0.5 * (2 * np.pi * qubit.flux)
-            ),
-            spectral_density=spectral_density_qt(qubit, T),
+            noise_op=qubit.sin_phi_operator(alpha=0.5, beta=0.5 * (2 * np.pi * qubit.flux)),
+            spectral_density=spectral_density_qt(qubit, True, T) + spectral_density_qt(qubit, False, T),
             eigvecs=qubit.esys()[1],
         )
 
@@ -167,8 +168,7 @@ def effective_tphi_rate(
     A_cc: float = NOISE_PARAMS["A_cc"],
     A_flux: float = NOISE_PARAMS["A_flux"],
 ) -> torch.Tensor:
-    eigvals, eigvecs = qubit.esys()
-
+    eigvecs = qubit.esys()[1]
     tphi = torch.zeros([1, 1], dtype=torch.double)
 
     # tphi_1_over_f_flux
@@ -201,8 +201,9 @@ def q_cap_fun(qubit) -> torch.Tensor:
     return 1e6 * torch.pow((2 * np.pi * 6e9 / torch.abs(omega(qubit) * (1e9))), 0.7)
 
 
-def spectral_density_cap(qubit, T: float = NOISE_PARAMS["T"]):
-    therm_ratio = calc_therm_ratio(omega(qubit), T)
+def spectral_density_cap(qubit, plus_minus_omega: bool, T: float = NOISE_PARAMS["T"]):
+    omega_for_calc = omega(qubit) if plus_minus_omega else -omega(qubit)
+    therm_ratio = calc_therm_ratio(omega_for_calc, T)
     s = (
         2
         * 8
@@ -218,11 +219,13 @@ def spectral_density_cap(qubit, T: float = NOISE_PARAMS["T"]):
 # FLUX BIAS LINE
 def spectral_density_fbl(
     qubit,
+    plus_minus_omega: bool,
     M: float = NOISE_PARAMS["M"],
     R_0: float = NOISE_PARAMS["R_0"],
     T: float = NOISE_PARAMS["T"],
 ):
-    therm_ratio = calc_therm_ratio(omega(qubit), T)
+    omega_for_calc = omega(qubit) if plus_minus_omega else -omega(qubit)
+    therm_ratio = calc_therm_ratio(omega_for_calc, T)
     s = (
         2
         * (2 * np.pi) ** 2
@@ -233,6 +236,7 @@ def spectral_density_fbl(
         * (1 / torch.tanh(0.5 * therm_ratio))
         / (1 + torch.exp(-therm_ratio))
     )
+
     # Unsure why an extra factor of 1e9 is needed?
     return s * 1e9
 
@@ -240,6 +244,7 @@ def spectral_density_fbl(
 # CHARGE IMPEDANCE
 def spectral_density_ci(
     qubit,
+    plus_minus_omega: bool,
     R_0: float = NOISE_PARAMS["R_0"],
     T: float = NOISE_PARAMS["T"],
     R_k: float = NOISE_PARAMS["R_k"],
@@ -247,24 +252,19 @@ def spectral_density_ci(
     # Note, our definition of Q_c is different from Zhang et al (2020) by a
     # factor of 2
 
+    omega_for_calc = omega(qubit) if plus_minus_omega else -omega(qubit)
+
     Q_c = R_k / (8 * np.pi * complex(R_0).real)
-    therm_ratio = calc_therm_ratio(omega(qubit), T)
-    s = (
-        2
-        * (omega(qubit))
-        / Q_c
-        * (1 / torch.tanh(0.5 * therm_ratio))
-        / (1 + torch.exp(-therm_ratio))
-    )
+    therm_ratio = calc_therm_ratio(omega_for_calc, T)
+    s = 2 * (omega_for_calc) / Q_c * (1 / torch.tanh(0.5 * therm_ratio)) / (1 + torch.exp(-therm_ratio))
     return s
 
 
 # INDUCTIVE
-def q_ind_fun(qubit, T: float = NOISE_PARAMS["T"]):
-    therm_ratio = abs(calc_therm_ratio(omega(qubit), T))
-    therm_ratio_500MHz = calc_therm_ratio(
-        omega=torch.tensor(2 * np.pi * 500e6) / 1e9, T=T
-    )
+def q_ind_fun(qubit, plus_minus_omega: bool, T: float = NOISE_PARAMS["T"]):
+    omega_for_calc = omega(qubit) if plus_minus_omega else -omega(qubit)
+    therm_ratio = abs(calc_therm_ratio(omega_for_calc, T))
+    therm_ratio_500MHz = calc_therm_ratio(omega=torch.tensor(2 * np.pi * 500e6) / 1e9, T=T)
 
     return (
         500e6
@@ -281,8 +281,9 @@ def q_ind_fun(qubit, T: float = NOISE_PARAMS["T"]):
     )  ##multiplying each through by the torch.exp(1 / 2 * therm_ratio) seems to work but is different to scqubits?
 
 
-def spectral_density_ind(qubit, T: float = NOISE_PARAMS["T"]):
-    therm_ratio = calc_therm_ratio(omega(qubit), T)
+def spectral_density_ind(qubit, plus_minus_omega: bool, T: float = NOISE_PARAMS["T"]):
+    omega_for_calc = omega(qubit) if plus_minus_omega else -omega(qubit)
+    therm_ratio = calc_therm_ratio(omega_for_calc, T)
 
     s = (
         2
@@ -305,9 +306,9 @@ def y_qp_fun(
 ):
     Delta_in_Hz = Delta * sp.constants.e / sp.constants.h
     omega_in_Hz = torch.abs(omega(qubit)) * 1e9 / (2 * np.pi)
-    EJ_in_Hz = qubit.EJ * 1e9  # GHz to Hz
+    EJ_in_Hz = qubit.EJ * 1e9
 
-    therm_ratio = calc_therm_ratio(omega(qubit), T)
+    therm_ratio = calc_therm_ratio(torch.abs(omega(qubit)), T)
     re_y_qp = (
         np.sqrt(2 / np.pi)
         * (8 / R_k)
@@ -319,17 +320,20 @@ def y_qp_fun(
         * torch.sinh(1 / 2 * therm_ratio)
         / torch.exp(1 / 2 * torch.abs(therm_ratio))
     )
+
     return re_y_qp
 
 
 def spectral_density_qt(
     qubit,
+    plus_minus_omega: bool,
     T: float = NOISE_PARAMS["T"],
 ):
-    therm_ratio = calc_therm_ratio(torch.abs(omega(qubit)), T)
+    omega_for_calc = omega(qubit) if plus_minus_omega else -omega(qubit)
+    therm_ratio = calc_therm_ratio(omega_for_calc, T)
     return (
         2
-        * torch.abs(omega(qubit))
+        * omega_for_calc
         * complex(y_qp_fun(qubit)).real
         * (1 / torch.tanh(0.5 * therm_ratio))
         / (1 + torch.exp(-therm_ratio))
