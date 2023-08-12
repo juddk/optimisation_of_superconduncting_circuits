@@ -50,6 +50,12 @@ class Fluxonium:
             ).hamiltonian()
         )
 
+    def sym_H(self) -> torch.Tensor:
+        # Constructs Hamiltonian using analytic form
+        argument = self.phi_operator() - self.flux
+        cos_argument = (torch.matrix_exp(1j * argument) + torch.matrix_exp(-1j * argument)) / 2
+        return 4 * self.EC * self.n_operator() ** 2 - self.EJ * cos_argument + self.EL * (self.phi_operator() ** 2) / 2
+
     def t1_supported_noise_channels(self):
         t1_supported_noise_channels = []
         for x in sc.Fluxonium(
@@ -81,8 +87,10 @@ class Fluxonium:
         # TBC: eigenvals are returned in units of freqeucy
         if self.hamiltonian_creation == "create_H":
             eigvals, eigvecs = torch.linalg.eigh(self.create_H())
-        elif self.hamiltonian_creation == "auto_H":
+        if self.hamiltonian_creation == "auto_H":
             eigvals, eigvecs = torch.linalg.eigh(self.auto_H())
+        if self.hamiltonian_creation == "sym_H":
+            eigvals, eigvecs = torch.linalg.eigh(self.sym_H())
         return eigvals, eigvecs
 
     # OPERATORS
