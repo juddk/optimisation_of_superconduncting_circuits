@@ -54,7 +54,11 @@ class Fluxonium:
         # Constructs Hamiltonian using analytic form
         argument = self.phi_operator() - self.flux
         cos_argument = (torch.matrix_exp(1j * argument) + torch.matrix_exp(-1j * argument)) / 2
-        return 4 * self.EC * self.n_operator() ** 2 - self.EJ * cos_argument + self.EL * (self.phi_operator() ** 2) / 2
+        return (
+            4 * self.EC * torch.pow(self.n_operator(), 2)
+            - self.EJ * cos_argument
+            + self.EL * torch.pow(self.phi_operator(), 2) / 2
+        )
 
     def t1_supported_noise_channels(self):
         t1_supported_noise_channels = []
@@ -102,7 +106,7 @@ class Fluxonium:
                 torch.tensor(general.creation(self.dim), dtype=torch.double)
                 + torch.tensor(general.annihilation(self.dim), dtype=torch.double)
             )
-            * self.phi_osc()
+            * torch.pow((8.0 * self.EC / self.EL), 0.25)
             / math.sqrt(2)
         )
 
@@ -132,18 +136,13 @@ class Fluxonium:
                 torch.tensor(general.creation(self.dim), dtype=torch.double)
                 - torch.tensor(general.annihilation(self.dim), dtype=torch.double)
             )
-            / (self.phi_osc() * math.sqrt(2))
+            / (torch.pow((8.0 * self.EC / self.EL), 0.25) * math.sqrt(2))
         )
         return n_op
-
-    def phi_osc(self):
-        # LC oscillator length
-        return torch.pow((8.0 * self.EC / self.EL), 0.25)
 
     def d_hamiltonian_d_flux(self):
         # Returns operator representing a derivative of the Hamiltonian with respect to
         # flux in the harmonic-oscillator (charge) basis
-
         d_ham_d_flux = -2 * np.pi * self.EJ * self.sin_phi_operator(alpha=1, beta=2 * np.pi * self.flux)
         return d_ham_d_flux
 

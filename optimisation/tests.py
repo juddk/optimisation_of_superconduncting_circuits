@@ -10,6 +10,16 @@ from zeropi import ZeroPi
 import general as general
 import scqubits as sc
 
+
+def are_arrays_similar(arr1, arr2):
+    for x in range(0, len(arr1)):
+        for y in range(0, len(arr1)):
+            if arr1[x][y] - arr2[x][y] > 0.001:
+                print(x, y)
+    print("DONE")
+    return
+
+
 # Fluxonium Class T2 Calc
 
 EJ = torch.rand(1, requires_grad=True, dtype=torch.double)
@@ -28,9 +38,10 @@ fluxonium_create = Fluxonium(EJ, EC, EL, flux, dim, "create_H")
 fluxonium_sym = Fluxonium(EJ, EC, EL, flux, dim, "sym_H")
 fluxonium_sc = sc.Fluxonium(EJ=EJ.item(), EC=EC.item(), EL=EL.item(), flux=flux.item(), cutoff=dim)
 
-general.t2_rate(
-    fluxonium_create, fluxonium_create.t1_supported_noise_channels(), fluxonium_create.tphi_supported_noise_channels()
-)
+print(are_arrays_similar(fluxonium_auto.auto_H().detach().numpy(), fluxonium_sym.sym_H().detach().numpy()))
+
+
+print(f"Fluxonium Class: EJ= {EJ.item()}, EC= {EC.item()}, EL= {EL.item()}, flux= {flux.item()}")
 print(
     f"Fluxonium Class: t1_quasiparticle_tunneling = {(fluxonium_sc.t1_quasiparticle_tunneling()*general.effective_t1_rate(fluxonium_create, 't1_quasiparticle_tunneling').item())}"
 )
@@ -50,7 +61,7 @@ print(
     f"Fluxonium Class: tphi_1_over_f_cc = {(fluxonium_sc.tphi_1_over_f_cc() * general.effective_tphi_rate(fluxonium_create , 'tphi_1_over_f_cc').item())}"
 )
 print(
-    f"Fluxonium Class: tphi_1_over_f_cc = {(fluxonium_sc.tphi_1_over_f_flux() * general.effective_tphi_rate(fluxonium_create, 'tphi_1_over_f_flux').item())}"
+    f"Fluxonium Class: tphi_1_over_f_flux = {(fluxonium_sc.tphi_1_over_f_flux() * general.effective_tphi_rate(fluxonium_create, 'tphi_1_over_f_flux').item())}"
 )
 
 

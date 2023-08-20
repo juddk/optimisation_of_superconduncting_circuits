@@ -70,14 +70,12 @@ def t1_rate(
     excited = eigvecs[:, 1]
 
     s = spectral_density
-    ##Note the distinction in code where they have spectral_density(omega)+spectral_density(-omega)
+    # We have defined spectral densitites to be spectral_density(omega)+spectral_density(-omega)
 
     rate = torch.matmul(noise_op.to(torch.complex128), ground.T.to(torch.complex128))
     rate = torch.matmul(excited.conj().to(torch.complex128), rate)
     rate = torch.pow(torch.abs(rate), 2) * s
     rate = rate
-
-    # Returns rate in 1/(2pi*1e9) s --> or maybe not? maybve just 1e9
 
     return rate
 
@@ -167,6 +165,7 @@ def effective_tphi_rate(
     noise_channels: Union[str, List[str]],
     A_cc: float = NOISE_PARAMS["A_cc"],
     A_flux: float = NOISE_PARAMS["A_flux"],
+    A_ng: float = NOISE_PARAMS["A_ng"],
 ) -> torch.Tensor:
     eigvecs = qubit.esys()[1]
     tphi = torch.zeros([1, 1], dtype=torch.double)
@@ -179,12 +178,16 @@ def effective_tphi_rate(
     if "tphi_1_over_f_cc" in noise_channels:
         tphi += tphi_rate(A_cc, qubit.d_hamiltonian_d_EJ(), eigvecs=eigvecs)
 
+    # tphi_1_over_f_ng
+    if "tphi_1_over_f_ng" in noise_channels:
+        tphi += tphi_rate(A_ng, qubit.d_hamiltonian_d_ng(), eigvecs=eigvecs)
+
     return tphi
 
 
 # T2 RATE
 def t2_rate(
-    qubit,  # Union[ZeroPi, Fluxonium],
+    qubit,
     t1_noise_channels: Union[str, List[str]],
     tphi_noise_channels: Union[str, List[str]],
 ) -> torch.Tensor:
@@ -212,7 +215,7 @@ def spectral_density_cap(qubit, plus_minus_omega: bool, T: float = NOISE_PARAMS[
         * (1 / torch.tanh(0.5 * torch.abs(therm_ratio)))
         / (1 + torch.exp(-therm_ratio))
     )
-    s *= 2 * np.pi  # We assume that system energies are given in units of frequency
+    s *= 2 * np.pi
     return s
 
 
