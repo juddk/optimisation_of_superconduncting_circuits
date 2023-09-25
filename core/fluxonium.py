@@ -24,6 +24,16 @@ class Fluxonium:
         self.dim = dim
         self.hamiltonian_creation = hamiltonian_creation
 
+    
+        """
+        TILE
+
+        Parameters
+        ----------
+        dddd :   diddd
+        ddd :   flddd
+        """
+
     # CREATING QUBIT
     def create_H(self) -> torch.Tensor:
         # Constructs Hamiltonian matrix in harmonic-oscillator basis.
@@ -59,6 +69,12 @@ class Fluxonium:
             - self.EJ * cos_argument
             + self.EL * torch.pow(self.phi_operator(), 2) / 2
         )
+    
+
+    def manual_discretization_H(self) -> torch.Tensor:
+        # Constructs Hamiltonian using disretization of symbolic form.
+        pass
+
 
     def t1_supported_noise_channels(self):
         t1_supported_noise_channels = []

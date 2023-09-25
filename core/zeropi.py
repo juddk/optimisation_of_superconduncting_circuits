@@ -6,7 +6,9 @@ from scipy.sparse import dia_matrix
 import general
 import scipy as sp
 from typing import Union
-
+from discretization import DOM
+import xitorch
+from xitorch import linalg
 
 class ZeroPi:
     # All values in GHz
@@ -15,38 +17,51 @@ class ZeroPi:
         EJ: torch.Tensor,
         EL: torch.Tensor,
         ECJ: torch.Tensor,
+        ECS: torch.Tensor,
         EC: torch.Tensor,
         dEJ: torch.Tensor,
         dCJ: torch.Tensor,
-        flux: torch.Tensor,
+        phi_ext: torch.Tensor,
+        varphi_ext: torch.Tensor,
         ng: float,
         ncut: float,
         truncated_dim: float,
         pt_count: int,
         min_val: float,
         max_val: float,
-        hamiltonian_creation: str,
+        hamiltonian_creation_solution #tuple[str, str] = ('manual_discretization','xitorch_davidon')
     ):
         self.EJ = EJ
         self.EL = EL
         self.ECJ = ECJ
+        self.ECS= ECS
         self.EC = EC
         self.dEJ = dEJ
         self.dCJ = dCJ
-        self.flux = flux
+        self.phi_ext = phi_ext
+        self.varphi_ext = varphi_ext
         self.ng = ng
         self.ncut = ncut
         self.truncated_dim = truncated_dim
         self.pt_count = pt_count
         self.min_val = min_val
         self.max_val = max_val
-        self.hamiltonian_creation = hamiltonian_creation
+        self.hamiltonian_creation_solution = hamiltonian_creation_solution
+
+        """
+        TILE
+
+        Parameters
+        ----------
+        dddd :   diddd
+        ddd :   flddd
+        """
 
     # CREATING QUBIT
-    def create_H(self):
-        # Calculates Hamiltonian in basis obtained by discretizing :math:`\phi` and employing
-        # charge basis for :math:`\theta`
 
+
+    def create_H(self):
+        #this wont work gradients due to the sparse.dia_matrix
         return self.kinetic_matrix() + self.potential_matrix()
 
     def auto_H(self) -> torch.Tensor:
@@ -57,13 +72,47 @@ class ZeroPi:
             ECJ=self.ECJ.item(),
             EC=self.EC.item(),
             ng=self.ng,
-            flux=self.flux.item(),
+            flux=self.phi_ext.item(),
             ncut=self.ncut,
             dEJ=self.dEJ.item(),
             dCJ=self.dCJ.item(),
         )
 
         return torch.from_numpy(create_qubit.hamiltonian().toarray())
+    
+    def manual_discretization_H(self) -> torch.Tensor:
+        # Constructs Hamiltonian using disretization of symbolic form.
+
+        phi = np.linspace(0, 2 * np.pi, DOM.Nphi)
+        cos_phi = np.cos(phi)
+        cos_phi_m = np.diag(cos_phi)
+        sin_phi_adj = np.sin(phi-self.phi_ext.detach().numpy()/2)
+        sin_phi_adj_m = np.diag(sin_phi_adj)
+        phi_m = np.diag(phi)
+        _cos_phi = torch.kron(torch.tensor(cos_phi_m), torch.tensor(DOM.eye_Nphi) )
+        _phi = torch.kron(torch.tensor(phi_m), torch.tensor(DOM.eye_Nphi) )
+        _sin_phi_adj_m  = torch.kron(torch.tensor(sin_phi_adj_m), torch.tensor(DOM.eye_Nphi))
+
+        theta = np.linspace(0, 2 * np.pi, DOM.Ntheta)
+        cos_theta_adj = np.cos(theta-self.varphi_ext.detach().numpy()/2)
+        sin_theta = np.sin(theta)
+        cos_theta_adj_m = np.diag(cos_theta_adj)
+        sin_theta_m = np.diag(sin_theta)
+        _cos_theta_adj_m = torch.kron(torch.tensor(cos_theta_adj_m), torch.tensor(DOM.eye_Ntheta))
+        _sin_theta_m = torch.kron(torch.tensor(sin_theta_m), torch.tensor(DOM.eye_Ntheta))
+
+
+        I = torch.kron(torch.tensor(DOM.eye_Nphi), torch.tensor(DOM.eye_Ntheta))
+
+        ham = -2 * self.ECJ * (DOM.partial_phi_fd * DOM.partial_phi_bk) \
+            + 2 * self.ECS * (-1* DOM.partial_theta_fd**2 +self.ng**2*I-2*self.ng*DOM.partial_theta_fd)\
+            + 2 * self.ECS * self.dCJ * DOM.partial_phi_fd * DOM.partial_theta_fd \
+            - 2 * self.EJ * _cos_phi * _cos_theta_adj_m \
+            + self.EL * _phi ** 2 \
+            + 2 * self.EJ * I  \
+            + self.EJ * self.dEJ * _sin_theta_m * _sin_phi_adj_m
+        return ham + torch.transpose(ham, 1,0 )
+       
 
     def t1_supported_noise_channels(self):
         t1_supported_noise_channels = []
@@ -74,7 +123,7 @@ class ZeroPi:
             ECJ=self.ECJ.item(),
             EC=self.EC.item(),
             ng=self.ng,
-            flux=self.flux.item(),
+            flux=self.phi_ext.item(),
             ncut=self.ncut,
             dEJ=self.dEJ,
             dCJ=self.dCJ,
@@ -93,7 +142,7 @@ class ZeroPi:
             ECJ=self.ECJ.item(),
             EC=self.EC.item(),
             ng=self.ng,
-            flux=self.flux.item(),
+            flux=self.phi_ext.item(),
             ncut=self.ncut,
             dEJ=self.dEJ,
             dCJ=self.dCJ,
@@ -104,10 +153,14 @@ class ZeroPi:
         return tphi_supported_noise_channels
 
     def esys(self):
-        if self.hamiltonian_creation == "create_H":
+        if self.hamiltonian_creation_solution == "create_H":
             eigvals, eigvecs = torch.linalg.eigh(self.create_H())
-        elif self.hamiltonian_creation == "auto_H":
+        elif self.hamiltonian_creation_solution == "auto_H":
             eigvals, eigvecs = torch.linalg.eigh(self.auto_H())
+        elif self.hamiltonian_creation_solution == "manual_discretization_davidson":
+            H = xitorch.LinearOperator.m(self.manual_discretization_H())
+            xitorch.LinearOperator._getparamnames(H, "EJ, EJ, EC")
+            eigvals, eigvecs = xitorch.linalg.symeig(H, 2, method="davidson", max_niter=100, nguess=None, v_init="randn", max_addition=None, min_eps=1e-06, verbose=False)
         return eigvals, eigvecs
 
     # OPERATORS
@@ -164,7 +217,7 @@ class ZeroPi:
 
     def d_hamiltonian_d_EJ(self) -> torch.Tensor:
         d_potential_d_EJ_mat = -2.0 * torch.kron(
-            self._cos_phi_operator(x=-2.0 * np.pi * self.flux.item() / 2.0),
+            self._cos_phi_operator(x=-2.0 * np.pi * self.phi_ext.item() / 2.0),
             self._cos_theta_operator(),
         )
 
@@ -173,11 +226,11 @@ class ZeroPi:
 
     def d_hamiltonian_d_flux(self) -> torch.Tensor:
         op_1 = torch.kron(
-            self._sin_phi_operator(x=-2.0 * np.pi * self.flux.item() / 2.0),
+            self._sin_phi_operator(x=-2.0 * np.pi * self.phi_ext.item() / 2.0),
             self._cos_theta_operator(),
         )
         op_2 = torch.kron(
-            self._cos_phi_operator(x=-2.0 * np.pi * self.flux.item() / 2.0),
+            self._cos_phi_operator(x=-2.0 * np.pi * self.phi_ext.item() / 2.0),
             self._sin_theta_operator(),
         )
         d_potential_d_flux_mat = -2.0 * np.pi * self.EJ * op_1 - np.pi * self.EJ * self.dEJ * op_2
@@ -294,13 +347,13 @@ class ZeroPi:
             sparse.dia_matrix((phi_inductive_vals, [0]), shape=(self.pt_count, self.pt_count)).tocsc().toarray()
         )
 
-        phi_cos_vals = torch.cos(grid_linspace - 2.0 * np.pi * self.flux / 2.0)
+        phi_cos_vals = torch.cos(grid_linspace - 2.0 * np.pi * self.phi_ext / 2.0)
 
         phi_cos_potential = torch.from_numpy(
             sparse.dia_matrix((phi_cos_vals, [0]), shape=(self.pt_count, self.pt_count)).tocsc().toarray()
         )
 
-        phi_sin_vals = torch.sin(grid_linspace - 2.0 * np.pi * self.flux / 2.0)
+        phi_sin_vals = torch.sin(grid_linspace - 2.0 * np.pi * self.phi_ext / 2.0)
 
         phi_sin_potential = torch.from_numpy(
             sparse.dia_matrix((phi_sin_vals, [0]), shape=(self.pt_count, self.pt_count)).tocsc().toarray()
